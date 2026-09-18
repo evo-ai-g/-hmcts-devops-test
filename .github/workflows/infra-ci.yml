@@ -1,0 +1,61 @@
+name: Infra CI
+
+# Path-filtered to Terraform only. A change to application code
+# triggers app-ci.yml, not this workflow. A Terraform change triggers
+# only this workflow. The two are fully independent — which is the
+# whole point of splitting them into separate files.
+#
+# Until Part 3 creates terraform/, this workflow will never fire:
+# its path filter matches nothing. No false failures, no wasted
+# minutes. It becomes live the moment Terraform lands.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/infra-ci.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/infra-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fmt-and-validate:
+    name: Format and validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.x'
+          terraform_wrapper: false
+
+      # fmt -check is the HCL equivalent of Checkstyle: it fails
+      # if any file is not canonically formatted. `-recursive` walks
+      # subdirectories, `-check` makes it a gate rather than an
+      # auto-fix. Reviewers should never argue about whitespace.
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive
+
+      - name: terraform init
+        run: terraform init -backend=false -input=false
+
+      # validate checks syntax, provider schema conformance, and
+      # variable/reference consistency. It does NOT contact Azure
+      # and does NOT require credentials.
+      - name: terraform validate
+        run: terraform validate
+        

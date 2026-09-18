@@ -1,0 +1,156 @@
+name: App CI
+
+# Path filtering: this workflow runs only when application code or
+# app-level config changes. Terraform changes trigger infra-ci.yml
+# instead. A docs-only PR triggers neither. Path filters are native
+# GitHub Actions (not a third-party workaround) and keep the pipeline
+# focused on what actually changed.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'build.gradle'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'config/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'docker-compose.yml'
+      - '.github/workflows/app-ci.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'build.gradle'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'config/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'docker-compose.yml'
+      - '.github/workflows/app-ci.yml'
+  workflow_dispatch:
+
+# Least privilege: the workflow reads code and writes security
+# findings. Nothing else. GITHUB_TOKEN is scoped down rather than
+# granted the default broad set.
+permissions:
+  contents: read
+  security-events: write
+
+# Cancel superseded runs on the same branch/PR. Two pushes in a
+# minute shouldn't queue two full pipelines — only the latest
+# commit matters.
+concurrency:
+  group: app-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Build, check, package
+        run: ./gradlew build --no-daemon
+
+      # Test results uploaded even on failure, so a red build is
+      # debuggable from the Actions run page without re-running
+      # locally.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: build/test-results/test/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload fat jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-jar
+          path: build/libs/test-backend.jar
+          retention-days: 3
+
+  docker-build-scan:
+    name: Build image and scan
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Two tags per image: a role tag (main / pr-N) for humans and
+      # downstream tooling, and a SHA-suffixed tag for immutability
+      # and rollback. See docs/adr/0002-docker-image-tagging.md.
+      - name: Compute image tags
+        id: tags
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            role="pr-${{ github.event.pull_request.number }}"
+          else
+            role="main"
+          fi
+          short_sha=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "role=${role}" >> "$GITHUB_OUTPUT"
+          echo "immutable=${role}-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "Tagging image as: ${role} and ${role}-${short_sha}"
+
+      - uses: docker/setup-buildx-action@v3
+
+      # GHA cache stores Docker layers between runs. Same idea as
+      # the Gradle cache, one level down the stack.
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: |
+            hmcts-devops-test:${{ steps.tags.outputs.role }}
+            hmcts-devops-test:${{ steps.tags.outputs.immutable }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # First pass: report ALL findings (HIGH + CRITICAL) as SARIF
+      # for the Security tab, but never fail the pipeline here.
+      - name: Trivy — report HIGH and CRITICAL
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: hmcts-devops-test:${{ steps.tags.outputs.immutable }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '0'
+
+      - name: Upload Trivy findings to Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+      # Second pass: fail the pipeline on CRITICAL only. `--ignore-unfixed`
+      # means the gate fires only on vulnerabilities with an available
+      # fix — a developer can always unblock by upgrading the package.
+      # HIGH findings remain visible in the Security tab.
+      - name: Trivy — block on CRITICAL
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: hmcts-devops-test:${{ steps.tags.outputs.immutable }}
+          format: table
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
