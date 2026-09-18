@@ -1,0 +1,15 @@
+# Default: let git auto-detect text vs binary
+* text=auto
+
+# Shell scripts MUST have LF endings, no matter the platform.
+# Without this, Windows clones get CRLF and the shebang breaks.
+*.sh text eol=lf
+gradlew text eol=lf
+
+# Windows batch files must have CRLF
+*.bat text eol=crlf
+
+# Binary files — never touch line endings
+*.jar binary
+*.png binary
+*.jpg binary

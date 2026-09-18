@@ -1,0 +1,67 @@
+# docker-compose.yml
+#
+# Local development environment for the HMCTS dev-test backend.
+# This is a self-service tool: any engineer can clone the repo,
+# copy .env.example to .env, and get a working stack with one
+# command. Nothing here is used in production — Terraform and
+# Azure take over from Part 3 onwards.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: hmcts-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER_NAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      # Named volume persists data across `docker compose down`.
+      # Without it, every restart wipes the database and you
+      # re-lose your test data on every iteration.
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready returns 0 when Postgres is accepting connections.
+      # `depends_on: condition: service_healthy` below uses this to
+      # gate the app's startup.
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER_NAME} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - devnet
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hmcts-devops-test:local
+    container_name: hmcts-app
+    depends_on:
+      postgres:
+        # The service_healthy condition waits for the postgres
+        # healthcheck above to pass before starting the app.
+        # Without this, the app starts, immediately tries to connect,
+        # and may fail because Postgres is still initialising.
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      # host:container. The app listens on 4000 inside the
+      # container (see SERVER_PORT), and we expose it on 4000
+      # on the host so http://localhost:4000/health works.
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    # The Dockerfile defines a HEALTHCHECK; Docker Compose reads
+    # it automatically and shows the app as healthy/unhealthy in
+    # `docker compose ps`. We don't need to redefine it here.
+    restart: unless-stopped
+    networks:
+      - devnet
+
+networks:
+  devnet:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  

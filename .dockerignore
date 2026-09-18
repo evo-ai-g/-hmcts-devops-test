@@ -1,0 +1,32 @@
+# --- Version control ---
+.git
+.gitignore
+
+# --- Local build output (we rebuild inside the container) ---
+build
+.gradle
+
+# --- IDE and editor state ---
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings
+
+# --- Docs and CI config (not needed to build the jar) ---
+docs
+.github
+*.md
+LICENSE
+
+# --- Local environment and secrets ---
+.env
+.env.*
+*.log
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db

@@ -23,3 +23,8 @@ bin/main/application.yaml
 
 applicationinsights-agent-*.jar
 *.log
+
+### Local env files ###
+.env
+.env.local
+.env.*.local
