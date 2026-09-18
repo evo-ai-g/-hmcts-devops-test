@@ -129,18 +129,10 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: hmcts-devops-test:${{ steps.tags.outputs.immutable }}
-          format: sarif
-          output: trivy-results.sarif
+          format: table
           severity: 'CRITICAL,HIGH'
           ignore-unfixed: true
           exit-code: '0'
-
-      - name: Upload Trivy findings to Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: trivy-results.sarif
-          category: trivy
 
       # Second pass: fail the pipeline on CRITICAL only. `--ignore-unfixed`
       # means the gate fires only on vulnerabilities with an available
