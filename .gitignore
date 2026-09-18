@@ -28,3 +28,6 @@ applicationinsights-agent-*.jar
 .env
 .env.local
 .env.*.local
+
+### Local interview prep — not part of the repo ###
+docs/INTERVIEW_NOTES.md
