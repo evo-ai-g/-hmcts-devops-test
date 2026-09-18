@@ -150,6 +150,13 @@ ext {
 }
 
 ext['snakeyaml.version'] = '2.2'
+// Override the Tomcat version pinned by Spring Boot's BOM.
+// Trivy flagged three CRITICAL CVEs in tomcat-embed-core 11.0.24
+// (auth bypasses, fixed upstream in 11.0.25). Spring Boot's BOM
+// lags behind Tomcat patch releases by design, so we pin the
+// patched version explicitly. Revisit and remove once Spring
+// Boot's managed version catches up.
+ext['tomcat.version'] = '11.0.25'
 
 dependencies {
   implementation 'org.springframework.boot:spring-boot-starter-web'
