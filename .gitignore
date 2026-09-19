@@ -31,3 +31,27 @@ applicationinsights-agent-*.jar
 
 ### Local interview prep — not part of the repo ###
 docs/INTERVIEW_NOTES.md
+
+### Terraform ###
+# Provider plugin cache — hundreds of MB, machine-specific, recreated by `terraform init`
+.terraform/
+
+# Local state file — contains secrets in plaintext, must never be committed
+*.tfstate
+*.tfstate.*
+
+# Crash logs, if Terraform ever crashes mid-apply
+crash.log
+crash.*.log
+
+# Environment-specific variable files. These may contain real values
+# (including the postgres password). Commit `terraform.tfvars.example`
+# instead — the shape without the values, same pattern as `.env.example`.
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# CLI configuration and plan files — local artefacts
+.terraformrc
+terraform.rc
+*.tfplan
