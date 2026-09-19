@@ -82,24 +82,32 @@ docker compose down -v    # also deletes the volume
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    browser["curl / browser"]
+    subgraph devnet["Docker network: devnet (bridge)"]
+        app["<b>hmcts-app</b><br/>Spring Boot · Java 21<br/>non-root UID 1001<br/>:4000"]
+        pg["<b>hmcts-postgres</b><br/>postgres:16<br/>:5432"]
+        vol[("postgres-data<br/>named volume")]
+    end
+
+    browser -->|":4000 published to host"| app
+    app -->|"JDBC<br/>DB_HOST=postgres"| pg
+    pg -.->|"persists"| vol
+    pg -. "depends_on:<br/>service_healthy" .-> app
+
+    style app fill:#cfe2ff,stroke:#0d6efd
+    style pg fill:#d1e7dd,stroke:#198754
+    style vol fill:#fff3cd,stroke:#997404
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Docker Compose network: devnet                             │
-│                                                             │
-│   ┌──────────────────┐         ┌────────────────────────┐  │
-│   │  hmcts-app       │         │  hmcts-postgres        │  │
-│   │                  │         │                        │  │
-│   │  Spring Boot     │────────▶│  postgres:16           │  │
-│   │  Java 21         │  JDBC   │                        │  │
-│   │  non-root (1001) │         │  volume: postgres-data │  │
-│   │  :4000           │         │  :5432 (internal only) │  │
-│   └────────┬─────────┘         └────────────────────────┘  │
-│            │                                                 │
-└────────────┼─────────────────────────────────────────────────┘
-             │ published to host
-             ▼
-     http://localhost:4000
-```
+
+**Startup order is enforced by healthchecks.** The app does not start
+until Postgres reports healthy via `pg_isready`. Postgres data persists
+in a named volume across `docker compose down`.
+
+**Postgres is not published to the host.** It is reachable only from
+containers on `devnet`. The app reaches it via the compose service name
+(`DB_HOST=postgres`), resolved by Docker's embedded DNS.
 
 **Startup order is enforced by healthchecks.** The app does not start
 until Postgres reports healthy via `pg_isready`. Postgres data persists
@@ -239,6 +247,38 @@ public, or when the organisation upgrades to GitHub Team. See
 ---
 
 ## Infrastructure (Terraform)
+
+```mermaid
+flowchart TB
+    user["User / browser"]
+    user -->|"HTTPS"| ingress
+
+    subgraph rg["Resource Group: rg-hmcts-dev-test"]
+        subgraph caenv["Container Apps Environment"]
+            ingress["Managed HTTPS ingress<br/>:4000"]
+            app["<b>Container App</b><br/>image: ...:main-&lt;sha&gt;<br/>managed identity"]
+        end
+        la["Log Analytics Workspace"]
+        kv["Key Vault"]
+        secret["Secret:<br/>postgres-admin-password"]
+        pg["PostgreSQL Flexible Server<br/>psql-hmcts-dev-test<br/>:5432"]
+        db[("Database<br/>devtest")]
+
+        ingress --> app
+        app -->|"DB_HOST, DB_PORT<br/>DB_NAME, DB_USER_NAME"| pg
+        app -.->|"reads at runtime<br/>via managed identity"| secret
+        secret -.-> kv
+        app -->|"stdout / stderr"| la
+        pg --> db
+    end
+
+    style app fill:#cfe2ff,stroke:#0d6efd
+    style pg fill:#d1e7dd,stroke:#198754
+    style kv fill:#fff3cd,stroke:#997404
+    style secret fill:#fff3cd,stroke:#997404
+    style db fill:#e7f5ff,stroke:#0d6efd
+    style la fill:#e2e3e5,stroke:#6c757d
+```
 
 `terraform/` describes an Azure deployment. It has been validated
 (`terraform fmt -check` and `terraform validate` pass) but not applied —
