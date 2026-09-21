@@ -18,7 +18,7 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
       - 'docker-compose.yml'
-      - '.github/workflows/app-ci.yml'
+      - '.github/workflows/**'
   pull_request:
     branches: [ main ]
     paths:
@@ -31,7 +31,7 @@ on:
       - 'Dockerfile'
       - '.dockerignore'
       - 'docker-compose.yml'
-      - '.github/workflows/app-ci.yml'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 # Least privilege: the workflow reads code and writes security
