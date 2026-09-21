@@ -477,11 +477,12 @@ See [ADR 0004](docs/adr/0004-trivy-cve-response.md).
   gated to public repositories or GitHub Advanced Security on private
   ones. Trivy findings print to the workflow log instead. See
   [ADR 0005](docs/adr/0005-github-tier-constraints.md).
-- **CodeQL removed.** Same constraint. The starter's workflow targeted
-  `master` and Java 17, both of which were also stale.
-- **No image signing or SBOM.** Would be added alongside a registry
-  push in a production pipeline.
-
+  
+- - **CodeQL is active.** Source scanning runs on push to `main`, on pull
+  requests, and weekly on a schedule. Findings appear in the Security tab.
+  (The workflow was initially removed while the repository was private,
+  because code scanning requires a public repo or GitHub Advanced
+  Security. See [ADR 0005](docs/adr/0005-github-tier-constraints.md).)
 ---
 
 ## Operational resilience

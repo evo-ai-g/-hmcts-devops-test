@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted — partially superseded. Code scanning became available when
+the repository was made public. See the Update section below.
 
 ## Context
 
@@ -56,4 +57,19 @@ Where a feature is gated, take the following approach:
 - All three of these choices are tier constraints, not design
   preferences. If the org upgraded, the design would execute
   unchanged.
+
+  
+---
+
+## Update — repository made public
+
+The repository was made public prior to submission. Code scanning
+became available, and `.github/workflows/codeql.yml` was restored with
+the `main` branch and Java 21 fixes applied.
+
+The other two constraints recorded in this ADR — branch protection
+enforcement and rulesets — activated automatically when the repository
+went public.
+
+The design did not change. The tier constraint lifted.
   
